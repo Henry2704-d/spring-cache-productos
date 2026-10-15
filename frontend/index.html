@@ -1,0 +1,471 @@
+
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport"
+          content="width=device-width, initial-scale=1.0">
+    <title>Comparación de Caché - Spring Boot</title>
+
+    <style>
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            margin: 0;
+            font-family: Arial, sans-serif;
+            background: #f1f5f9;
+            color: #1e293b;
+        }
+
+        header {
+            background: #172554;
+            color: white;
+            padding: 28px 8%;
+        }
+
+        header h1 {
+            margin: 0 0 8px;
+        }
+
+        header p {
+            margin: 0;
+            color: #cbd5e1;
+        }
+
+        main {
+            max-width: 1100px;
+            margin: 30px auto;
+            padding: 0 20px;
+        }
+
+        .cards {
+            display: grid;
+            grid-template-columns:
+                repeat(3, minmax(0, 1fr));
+            gap: 20px;
+        }
+
+        .card, .panel {
+            background: white;
+            padding: 24px;
+            border-radius: 12px;
+            box-shadow: 0 3px 10px #00000010;
+        }
+
+        .card h3 {
+            color: #64748b;
+            font-size: 15px;
+            margin-top: 0;
+        }
+
+        .card .value {
+            font-size: 28px;
+            font-weight: bold;
+            margin: 12px 0 0;
+            overflow-wrap: anywhere;
+        }
+
+        .green { color: #059669; }
+        .orange { color: #ea580c; }
+        .blue { color: #2563eb; }
+
+        .panel {
+            margin-top: 25px;
+        }
+
+        .buttons {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 12px;
+            margin: 20px 0;
+        }
+
+        button {
+            background: #2563eb;
+            color: white;
+            border: none;
+            padding: 13px 20px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 14px;
+        }
+
+        button:hover {
+            filter: brightness(0.9);
+        }
+
+        button:disabled {
+            opacity: 0.5;
+            cursor: wait;
+        }
+
+        .btn-green {
+            background: #059669;
+        }
+
+        .btn-gray {
+            background: #475569;
+        }
+
+        .bar {
+            height: 24px;
+            border-radius: 6px;
+            margin: 8px 0 20px;
+            transition: width 0.4s;
+        }
+
+        .bar-normal {
+            background: #f97316;
+            width: 0;
+        }
+
+        .bar-cache {
+            background: #10b981;
+            width: 0;
+        }
+
+        .chart {
+            background: #f8fafc;
+            padding: 20px;
+            border-radius: 10px;
+        }
+
+        .chart-track {
+            width: 100%;
+        }
+
+        .table-container {
+            overflow-x: auto;
+        }
+
+        table {
+            border-collapse: collapse;
+            width: 100%;
+        }
+
+        th, td {
+            padding: 12px;
+            border-bottom: 1px solid #e2e8f0;
+            text-align: left;
+        }
+
+        th {
+            background: #f1f5f9;
+        }
+
+        #estado {
+            color: #475569;
+            margin-top: 15px;
+        }
+
+        @media (max-width: 700px) {
+            .cards {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+
+<body>
+
+<header>
+    <h1>Panel de Comparación de Caché</h1>
+    <p>Java 21 | Spring Boot 4 | SQL Server | Caffeine</p>
+</header>
+
+<main>
+
+    <div class="cards">
+        <div class="card">
+            <h3>Productos registrados</h3>
+            <p class="value blue" id="cantidad">--</p>
+        </div>
+
+        <div class="card">
+            <h3>Tiempo sin caché</h3>
+            <p class="value orange" id="sinCache">--</p>
+        </div>
+
+        <div class="card">
+            <h3>Tiempo con caché</h3>
+            <p class="value green" id="conCache">--</p>
+        </div>
+    </div>
+
+    <section class="panel">
+        <h2>Pruebas de rendimiento</h2>
+        <p>
+            Ejecuta las consultas y compara el tiempo
+            necesario para obtener 10.000 registros.
+        </p>
+
+        <div class="buttons">
+            <button onclick="consultarSinCache()">
+                Consultar sin caché
+            </button>
+
+            <button class="btn-green"
+                    onclick="consultarConCache()">
+                Consultar con caché
+            </button>
+
+            <button class="btn-gray"
+                    onclick="comparar()">
+                Comparar ambos
+            </button>
+        </div>
+
+        <p id="estado">Esperando consultas...</p>
+
+        <h3>Comparación gráfica</h3>
+
+        <div class="chart">
+            <p>Sin caché: <span id="labelNormal">--</span></p>
+            <div class="chart-track">
+                <div class="bar bar-normal"
+                     id="barraNormal"></div>
+            </div>
+
+            <p>Con caché: <span id="labelCache">--</span></p>
+            <div class="chart-track">
+                <div class="bar bar-cache"
+                     id="barraCache"></div>
+            </div>
+        </div>
+
+        <h3 id="resultado">Ejecuta ambas consultas.</h3>
+    </section>
+
+    <section class="panel">
+        <h2>Productos de SQL Server</h2>
+
+        <p>
+            Se muestran los primeros 20 productos
+            para no saturar la pantalla.
+        </p>
+
+        <div class="table-container">
+            <table>
+                <thead>
+                <tr>
+                    <th>ID</th>
+                    <th>Nombre</th>
+                    <th>Categoría</th>
+                    <th>Precio</th>
+                    <th>Stock</th>
+                </tr>
+                </thead>
+                <tbody id="tablaProductos"></tbody>
+            </table>
+        </div>
+    </section>
+
+</main>
+
+<script>
+    const API = "http://localhost:8080/api/productos";
+
+    let tiempoNormal = null;
+    let tiempoCache = null;
+    let ocupado = false;
+
+    function mostrarEstado(mensaje) {
+        document.getElementById("estado").textContent =
+            mensaje;
+    }
+
+    async function obtenerJSON(ruta) {
+        const respuesta = await fetch(API + ruta);
+
+        if (!respuesta.ok) {
+            throw new Error(
+                "Error HTTP " + respuesta.status
+            );
+        }
+
+        return await respuesta.json();
+    }
+
+    function actualizarGrafica() {
+        if (tiempoNormal === null ||
+            tiempoCache === null) {
+            return;
+        }
+
+        const maximo = Math.max(
+            tiempoNormal,
+            tiempoCache,
+            0.000001
+        );
+
+        document.getElementById("barraNormal")
+            .style.width =
+            (tiempoNormal / maximo * 100) + "%";
+
+        document.getElementById("barraCache")
+            .style.width =
+            (tiempoCache / maximo * 100) + "%";
+
+        document.getElementById("labelNormal")
+            .textContent =
+            tiempoNormal.toFixed(3) + " ms";
+
+        document.getElementById("labelCache")
+            .textContent =
+            tiempoCache.toFixed(3) + " ms";
+
+        if (tiempoCache > 0) {
+            const factor =
+                tiempoNormal / tiempoCache;
+
+            document.getElementById("resultado")
+                .textContent =
+                "Relación de tiempos: " +
+                factor.toFixed(2) + "x";
+        }
+    }
+
+    async function ejecutarConsulta(tipo) {
+        const ruta = tipo === "normal"
+            ? "/sin-cache"
+            : "/con-cache";
+
+        const datos = await obtenerJSON(ruta);
+        const tiempo = Number(datos.tiempoMs);
+
+        if (tipo === "normal") {
+            tiempoNormal = tiempo;
+
+            document.getElementById("sinCache")
+                .textContent =
+                tiempo.toFixed(3) + " ms";
+        } else {
+            tiempoCache = tiempo;
+
+            document.getElementById("conCache")
+                .textContent =
+                tiempo.toFixed(3) + " ms";
+        }
+
+        actualizarGrafica();
+    }
+
+    async function ejecutarSeguro(accion) {
+        if (ocupado) return;
+
+        ocupado = true;
+
+        document.querySelectorAll("button")
+            .forEach(boton => boton.disabled = true);
+
+        try {
+            await accion();
+        } catch (error) {
+            mostrarEstado(
+                "Error: " + error.message +
+                ". Verifica Spring Boot y CORS."
+            );
+        } finally {
+            ocupado = false;
+
+            document.querySelectorAll("button")
+                .forEach(boton => boton.disabled = false);
+        }
+    }
+
+    function consultarSinCache() {
+        ejecutarSeguro(async () => {
+            mostrarEstado("Consultando SQL Server...");
+
+            await ejecutarConsulta("normal");
+
+            mostrarEstado(
+                "Consulta sin caché completada."
+            );
+        });
+    }
+
+    function consultarConCache() {
+        ejecutarSeguro(async () => {
+            mostrarEstado("Consultando con caché...");
+
+            await ejecutarConsulta("cache");
+
+            mostrarEstado(
+                "Consulta con caché completada."
+            );
+        });
+    }
+
+    function comparar() {
+        ejecutarSeguro(async () => {
+            mostrarEstado(
+                "Ejecutando consultas comparativas..."
+            );
+
+            await ejecutarConsulta("normal");
+            await ejecutarConsulta("cache");
+
+            mostrarEstado(
+                "Comparación completada. " +
+                "Repite para comprobar los resultados."
+            );
+        });
+    }
+
+    async function cargarProductos() {
+        try {
+            const cantidad =
+                await obtenerJSON("/cantidad");
+
+            document.getElementById("cantidad")
+                .textContent =
+                Number(cantidad).toLocaleString("es");
+
+            const productos =
+                await obtenerJSON("/todos");
+
+            const tabla =
+                document.getElementById("tablaProductos");
+
+            tabla.innerHTML = "";
+
+            productos.slice(0, 20).forEach(producto => {
+                const fila = document.createElement("tr");
+
+                [
+                    producto.idProducto,
+                    producto.nombre,
+                    producto.categoria,
+                    producto.precio,
+                    producto.stock
+                ].forEach(valor => {
+                    const celda =
+                        document.createElement("td");
+
+                    celda.textContent = valor ?? "";
+                    fila.appendChild(celda);
+                });
+
+                tabla.appendChild(fila);
+            });
+
+            mostrarEstado(
+                "Conectado correctamente con Spring Boot."
+            );
+
+        } catch (error) {
+            mostrarEstado(
+                "No se pudo conectar al backend: " +
+                error.message
+            );
+        }
+    }
+
+    cargarProductos();
+</script>
+
+</body>
+</html>
